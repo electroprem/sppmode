@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Serial Barcode Terminal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Custom scrollbar for terminal */
+        .terminal-scroll::-webkit-scrollbar { width: 8px; }
+        .terminal-scroll::-webkit-scrollbar-track { background: #1f2937; }
+        .terminal-scroll::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+        .terminal-scroll::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen font-sans flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-gray-800 border-b border-gray-700 p-4 shadow-md">
+        <div class="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <i data-lucide="scan-line" class="w-8 h-8 text-blue-400"></i>
+                <div>
+                    <h1 class="text-xl font-bold text-white">Bluetooth SPP Scanner Terminal</h1>
+                    <p class="text-xs text-gray-400">Connects via OS Virtual COM Ports (Web Serial API)</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2 px-3 py-1 bg-gray-700 rounded-full text-sm">
+                    <span id="statusDot" class="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
+                    <span id="statusText" class="font-medium">Disconnected</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 max-w-6xl w-full mx-auto p-4 flex flex-col md:flex-row gap-6 h-[calc(100vh-80px)]">
+        
+        <!-- Controls Sidebar -->
+        <aside class="w-full md:w-80 flex flex-col gap-4">
+            <!-- Connection Card -->
+            <div class="bg-gray-800 rounded-xl border border-gray-700 p-5 shadow-lg">
+                <h2 class="text-lg font-semibold mb-4 border-b border-gray-700 pb-2 flex items-center gap-2">
+                    <i data-lucide="plug" class="w-5 h-5 text-gray-400"></i> Connection
+                </h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Baud Rate</label>
+                        <select id="baudRate" class="w-full bg-gray-900 border border-gray-600 rounded-lg p-2 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
+                            <option value="9600" selected>9600 (Standard)</option>
+                            <option value="19200">19200</option>
+                            <option value="38400">38400</option>
+                            <option value="57600">57600</option>
+                            <option value="115200">115200 (High Speed)</option>
+                        </select>
+                    </div>
+
+                    <button id="connectBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2.5 px-4 rounded-lg transition duration-200 flex items-center justify-center gap-2">
+                        <i data-lucide="link" class="w-5 h-5"></i> Connect Scanner
+                    </button>
+                    
+                    <button id="disconnectBtn" class="w-full bg-red-600 hover:bg-red-500 text-white font-semibold py-2.5 px-4 rounded-lg transition duration-200 flex items-center justify-center gap-2 hidden">
+                        <i data-lucide="link-2-off" class="w-5 h-5"></i> Disconnect
+                    </button>
+                </div>
+            </div>
+
+            <!-- Settings Card -->
+            <div class="bg-gray-800 rounded-xl border border-gray-700 p-5 shadow-lg">
+                <h2 class="text-lg font-semibold mb-4 border-b border-gray-700 pb-2 flex items-center gap-2">
+                    <i data-lucide="settings" class="w-5 h-5 text-gray-400"></i> Options
+                </h2>
+                
+                <div class="space-y-3">
+                    <label class="flex items-center gap-3 cursor-pointer group">
+                        <input type="checkbox" id="soundToggle" checked class="w-4 h-4 rounded bg-gray-900 border-gray-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800 cursor-pointer">
+                        <span class="text-sm text-gray-300 group-hover:text-white transition">Play sound on scan</span>
+                    </label>
+                    <label class="flex items-center gap-3 cursor-pointer group">
+                        <input type="checkbox" id="autoScrollToggle" checked class="w-4 h-4 rounded bg-gray-900 border-gray-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800 cursor-pointer">
+                        <span class="text-sm text-gray-300 group-hover:text-white transition">Auto-scroll terminal</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Instructions -->
+            <div class="bg-blue-900/30 border border-blue-800/50 rounded-xl p-4 text-sm text-blue-200 shadow-inner">
+                <p class="font-semibold text-blue-400 mb-2 flex items-center gap-1"><i data-lucide="info" class="w-4 h-4"></i> How to use</p>
+                <ol class="list-decimal list-inside space-y-1.5 opacity-90">
+                    <li>Pair scanner to OS via Bluetooth.</li>
+                    <li>Ensure scanner is set to <b>SPP Mode</b>.</li>
+                    <li>Click <b>Connect Scanner</b>.</li>
+                    <li>Select the assigned Virtual COM port.</li>
+                    <li>Scan a barcode!</li>
+                </ol>
+            </div>
+        </aside>
+
+        <!-- Terminal Output -->
+        <div class="flex-1 bg-gray-950 rounded-xl border border-gray-700 shadow-2xl flex flex-col overflow-hidden relative">
+            
+            <!-- Terminal Header -->
+            <div class="bg-gray-800 px-4 py-3 flex justify-between items-center border-b border-gray-700">
+                <span class="font-mono text-gray-400 text-sm flex items-center gap-2">
+                    <i data-lucide="terminal" class="w-4 h-4"></i> Output Window
+                </span>
+                <div class="flex gap-2">
+                    <button id="copyBtn" class="text-gray-400 hover:text-white bg-gray-700 hover:bg-gray-600 p-1.5 rounded transition" title="Copy All">
+                        <i data-lucide="copy" class="w-4 h-4"></i>
+                    </button>
+                    <button id="clearBtn" class="text-gray-400 hover:text-red-400 bg-gray-700 hover:bg-gray-600 p-1.5 rounded transition" title="Clear Terminal">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Terminal Output Area -->
+            <div id="terminalContainer" class="flex-1 p-4 overflow-y-auto terminal-scroll font-mono text-sm">
+                <div id="output" class="text-green-400 whitespace-pre-wrap break-all leading-relaxed space-y-1">
+                    <div class="text-gray-500 italic">Waiting for connection...</div>
+                </div>
+            </div>
+
+            <!-- Total Scans Footer -->
+            <div class="bg-gray-900 px-4 py-2 text-xs text-gray-500 border-t border-gray-800 flex justify-between">
+                <span>Total Items Scanned: <span id="scanCount" class="text-white font-bold">0</span></span>
+                <span id="lastScanTime"></span>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Error/Message Modal Overlay -->
+    <div id="messageModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 max-w-md w-full shadow-2xl transform scale-95 transition-all">
+            <h3 id="modalTitle" class="text-xl font-bold text-white mb-2">Notice</h3>
+            <p id="modalBody" class="text-gray-300 mb-6 leading-relaxed"></p>
+            <div class="flex justify-end">
+                <button onclick="closeModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-lg font-medium transition">
+                    Understood
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // State variables
+        let port = null;
+        let reader = null;
+        let keepReading = false;
+        let scanCount = 0;
+        let inputBuffer = '';
+
+        // DOM Elements
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const statusText = document.getElementById('statusText');
+        const statusDot = document.getElementById('statusDot');
+        const output = document.getElementById('output');
+        const terminalContainer = document.getElementById('terminalContainer');
+        const baudRateSelect = document.getElementById('baudRate');
+        const clearBtn = document.getElementById('clearBtn');
+        const copyBtn = document.getElementById('copyBtn');
+        const scanCountEl = document.getElementById('scanCount');
+        const lastScanTimeEl = document.getElementById('lastScanTime');
+        const soundToggle = document.getElementById('soundToggle');
+        const autoScrollToggle = document.getElementById('autoScrollToggle');
+
+        // Check compatibility
+        window.onload = () => {
+            if (!('serial' in navigator)) {
+                showModal(
+                    "Unsupported Browser", 
+                    "Your browser does not support the Web Serial API. Please use Google Chrome, Microsoft Edge, or Opera on a desktop operating system to connect to serial ports."
+                );
+                connectBtn.disabled = true;
+                connectBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        };
+
+        // --- Audio Context for Beep ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+
+        function playBeep() {
+            if (!soundToggle.checked) return;
+            if (!audioCtx) audioCtx = new AudioContext();
+            
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(1200, audioCtx.currentTime); // High pitch for scanner
+            
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.1);
+        }
+
+        // --- Serial Port Logic ---
+
+        connectBtn.addEventListener('click', async () => {
+            try {
+                // Request port selection from user
+                port = await navigator.serial.requestPort();
+                
+                // Open connection
+                const baudRate = parseInt(baudRateSelect.value);
+                await port.open({ baudRate: baudRate });
+                
+                // Update UI
+                updateUIConnected(true);
+                printToTerminal(`Connected at ${baudRate} baud. Ready to scan...`, 'text-blue-400');
+                
+                // Start reading loop
+                keepReading = true;
+                readLoop();
+
+            } catch (err) {
+                console.error("Connection error:", err);
+                if (err.name === 'NotFoundError') {
+                    // User cancelled selection
+                    return;
+                }
+                showModal("Connection Failed", `Failed to open port: ${err.message}. Ensure no other application (like a terminal app) is currently using this COM port.`);
+            }
+        });
+
+        disconnectBtn.addEventListener('click', async () => {
+            keepReading = false;
+            
+            // Force reader to cancel so we can release lock and close
+            if (reader) {
+                await reader.cancel();
+            }
+            
+            // Update UI
+            updateUIConnected(false);
+            printToTerminal("Disconnected.", 'text-yellow-400');
+        });
+
+        async function readLoop() {
+            while (port.readable && keepReading) {
+                // Setup stream decoding
+                const textDecoder = new TextDecoderStream();
+                const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+                reader = textDecoder.readable.getReader();
+
+                try {
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+                        if (value) {
+                            handleIncomingData(value);
+                        }
+                    }
+                } catch (error) {
+                    console.error("Read error:", error);
+                    printToTerminal(`Error reading from port: ${error.message}`, 'text-red-400');
+                } finally {
+                    reader.releaseLock();
+                }
+            }
+
+            // Clean up port closure after loop breaks
+            if (port) {
+                try {
+                    await port.close();
+                } catch (e) {
+                    console.error("Error closing port:", e);
+                }
+            }
+        }
+
+        // Buffer for incoming chunks
+        function handleIncomingData(data) {
+            inputBuffer += data;
+            
+            // Barcode scanners typically send \n or \r\n after a complete scan
+            if (inputBuffer.includes('\n') || inputBuffer.includes('\r')) {
+                // Split by newlines
+                const lines = inputBuffer.split(/\r?\n|\r/);
+                
+                // The last element is either empty string (if it ended exactly with newline) 
+                // or an incomplete piece of the next barcode.
+                inputBuffer = lines.pop(); 
+                
+                lines.forEach(line => {
+                    const cleanLine = line.trim();
+                    if (cleanLine.length > 0) {
+                        processBarcode(cleanLine);
+                    }
+                });
+            }
+        }
+
+        function processBarcode(barcode) {
+            scanCount++;
+            scanCountEl.innerText = scanCount;
+            
+            const timeStr = new Date().toLocaleTimeString();
+            lastScanTimeEl.innerText = `Last scan: ${timeStr}`;
+            
+            playBeep();
+            
+            // Create nice looking entry
+            const entryStr = `[${timeStr}] ${barcode}`;
+            printToTerminal(entryStr, 'text-green-400 font-bold bg-green-900/20 px-2 py-0.5 rounded inline-block w-full');
+        }
+
+        // --- UI & Helper Functions ---
+
+        function printToTerminal(text, customClasses = '') {
+            // Remove initial placeholder if present
+            if (output.innerHTML.includes('Waiting for connection...')) {
+                output.innerHTML = '';
+            }
+
+            const div = document.createElement('div');
+            div.textContent = text;
+            if (customClasses) {
+                div.className = customClasses;
+            }
+            
+            output.appendChild(div);
+
+            if (autoScrollToggle.checked) {
+                terminalContainer.scrollTop = terminalContainer.scrollHeight;
+            }
+        }
+
+        function updateUIConnected(isConnected) {
+            if (isConnected) {
+                connectBtn.classList.add('hidden');
+                disconnectBtn.classList.remove('hidden');
+                statusText.innerText = "Connected";
+                statusDot.classList.replace('bg-red-500', 'bg-green-500');
+                statusDot.classList.replace('shadow-[0_0_8px_rgba(239,68,68,0.8)]', 'shadow-[0_0_8px_rgba(34,197,94,0.8)]');
+                baudRateSelect.disabled = true;
+                baudRateSelect.classList.add('opacity-50');
+            } else {
+                connectBtn.classList.remove('hidden');
+                disconnectBtn.classList.add('hidden');
+                statusText.innerText = "Disconnected";
+                statusDot.classList.replace('bg-green-500', 'bg-red-500');
+                statusDot.classList.replace('shadow-[0_0_8px_rgba(34,197,94,0.8)]', 'shadow-[0_0_8px_rgba(239,68,68,0.8)]');
+                baudRateSelect.disabled = false;
+                baudRateSelect.classList.remove('opacity-50');
+                port = null;
+            }
+        }
+
+        clearBtn.addEventListener('click', () => {
+            output.innerHTML = '<div class="text-gray-500 italic">Terminal cleared...</div>';
+            scanCount = 0;
+            scanCountEl.innerText = '0';
+            lastScanTimeEl.innerText = '';
+            inputBuffer = '';
+        });
+
+        copyBtn.addEventListener('click', async () => {
+            // Get text without the placeholder
+            let textToCopy = output.innerText;
+            if (textToCopy.includes('Waiting for connection...') || textToCopy.includes('Terminal cleared...')) {
+                textToCopy = ""; // Don't copy placeholders
+            }
+            
+            if (!textToCopy.trim()) {
+                showModal("Nothing to copy", "The terminal is currently empty.");
+                return;
+            }
+
+            try {
+                // Fallback method required for iFrames
+                const textArea = document.createElement("textarea");
+                textArea.value = textToCopy;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                
+                // Visual feedback
+                const originalHtml = copyBtn.innerHTML;
+                copyBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4 text-green-400"></i>';
+                lucide.createIcons();
+                setTimeout(() => {
+                    copyBtn.innerHTML = originalHtml;
+                    lucide.createIcons();
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy', err);
+            }
+        });
+
+        // Modal logic
+        const modal = document.getElementById('messageModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalBody = document.getElementById('modalBody');
+
+        function showModal(title, message) {
+            modalTitle.innerText = title;
+            modalBody.innerText = message;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            // Small delay for transition effect
+            setTimeout(() => {
+                modal.children[0].classList.remove('scale-95');
+                modal.children[0].classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeModal() {
+            modal.children[0].classList.remove('scale-100');
+            modal.children[0].classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 150);
+        }
+    </script>
+</body>
+</html>
