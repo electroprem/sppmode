@@ -3,432 +3,785 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web Serial Barcode Terminal</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <meta name="theme-color" content="#f2f5ff">
+    <link rel="manifest" href="./manifest.webmanifest">
+    <title>Scanner Studio</title>
     <style>
-        /* Custom scrollbar for terminal */
-        .terminal-scroll::-webkit-scrollbar { width: 8px; }
-        .terminal-scroll::-webkit-scrollbar-track { background: #1f2937; }
-        .terminal-scroll::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
-        .terminal-scroll::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+        :root {
+            --bg: #edf2ff;
+            --card: rgba(255, 255, 255, 0.66);
+            --card-border: rgba(255, 255, 255, 0.72);
+            --text: #111827;
+            --muted: #6b7280;
+            --blue: #2563eb;
+            --blue-soft: #e8efff;
+            --danger: #dc2626;
+            --ok: #16a34a;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at 0% 0%, #dbeafe 0, transparent 45%),
+                radial-gradient(circle at 100% 0%, #e0e7ff 0, transparent 45%),
+                radial-gradient(circle at 50% 100%, #c7d2fe 0, transparent 45%),
+                var(--bg);
+        }
+        .app {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 24px 18px 32px;
+        }
+        .glass {
+            backdrop-filter: blur(16px);
+            background: var(--card);
+            border: 1px solid var(--card-border);
+            border-radius: 22px;
+            box-shadow: 0 20px 45px rgba(40, 60, 120, 0.14);
+        }
+        header {
+            padding: 20px 22px;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 18px;
+            flex-wrap: wrap;
+        }
+        h1 {
+            margin: 0;
+            font-size: clamp(1.3rem, 2.2vw, 1.9rem);
+            letter-spacing: -0.02em;
+        }
+        .sub {
+            margin-top: 4px;
+            color: var(--muted);
+            font-size: 0.95rem;
+        }
+        .mode-toggle {
+            background: #f8fafc;
+            border: 1px solid #dbe7ff;
+            border-radius: 999px;
+            display: inline-flex;
+            padding: 4px;
+            gap: 4px;
+        }
+        .mode-toggle button {
+            border: none;
+            background: transparent;
+            color: #1f2937;
+            border-radius: 999px;
+            padding: 9px 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 150ms ease;
+        }
+        .mode-toggle button.active {
+            background: linear-gradient(180deg, #3778ff 0, #215de4 100%);
+            color: white;
+            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.32);
+        }
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid #e5ebff;
+            border-radius: 999px;
+            padding: 7px 12px;
+            font-size: 0.9rem;
+        }
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: var(--danger);
+            box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.22);
+        }
+        .layout {
+            display: grid;
+            grid-template-columns: minmax(240px, 360px) minmax(0, 1fr);
+            gap: 18px;
+        }
+        .stack { display: grid; gap: 14px; }
+        .card {
+            padding: 16px;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid #eaf0ff;
+        }
+        .card h2 {
+            margin: 0 0 12px;
+            font-size: 1rem;
+            letter-spacing: -0.01em;
+        }
+        .help {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.86rem;
+            line-height: 1.45;
+        }
+        label {
+            display: block;
+            color: #4b5563;
+            font-size: 0.84rem;
+            margin-bottom: 6px;
+        }
+        input, select, textarea {
+            width: 100%;
+            border-radius: 12px;
+            border: 1px solid #d6e1ff;
+            background: white;
+            padding: 10px 12px;
+            font: inherit;
+            color: var(--text);
+            outline: none;
+        }
+        textarea { min-height: 92px; resize: vertical; }
+        input:focus, select:focus, textarea:focus {
+            border-color: #86a9ff;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.16);
+        }
+        .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        button {
+            border: none;
+            border-radius: 12px;
+            padding: 10px 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 130ms ease;
+        }
+        button.primary {
+            background: linear-gradient(180deg, #3778ff 0, #215de4 100%);
+            color: white;
+        }
+        button.primary:hover { transform: translateY(-1px); }
+        button.secondary {
+            background: #f1f5ff;
+            color: #1e3a8a;
+            border: 1px solid #d5e2ff;
+        }
+        button.danger { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .inline {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 8px;
+            align-items: end;
+        }
+        .check {
+            display: flex;
+            gap: 9px;
+            margin-bottom: 10px;
+            color: #374151;
+            align-items: center;
+            font-size: 0.93rem;
+        }
+        .check input {
+            width: 16px;
+            height: 16px;
+            margin: 0;
+            border-radius: 4px;
+        }
+        .terminal {
+            min-height: 540px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .terminal-head {
+            padding: 14px 16px;
+            border-bottom: 1px solid #e6ecff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            background: rgba(255, 255, 255, 0.82);
+        }
+        .term-controls { display: inline-flex; gap: 8px; }
+        #logOutput {
+            font-family: "SF Mono", "Menlo", "Consolas", monospace;
+            background: #0f172a;
+            color: #cbd5e1;
+            margin: 0;
+            padding: 14px;
+            overflow-y: auto;
+            flex: 1;
+            line-height: 1.52;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .entry { display: block; margin-bottom: 5px; }
+        .tag {
+            display: inline-block;
+            margin-right: 8px;
+            border-radius: 7px;
+            padding: 1px 7px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            vertical-align: middle;
+        }
+        .tag-rx { background: rgba(22, 163, 74, 0.2); color: #86efac; }
+        .tag-tx { background: rgba(37, 99, 235, 0.22); color: #bfdbfe; }
+        .tag-sys { background: rgba(148, 163, 184, 0.2); color: #e2e8f0; }
+        .barcodes {
+            margin-top: 12px;
+            border-top: 1px solid #e8eeff;
+            padding-top: 12px;
+        }
+        .barcode-list {
+            max-height: 140px;
+            overflow-y: auto;
+            margin: 0;
+            padding-left: 20px;
+            color: #1f2937;
+        }
+        .muted { color: var(--muted); font-size: 0.86rem; }
+        .hidden { display: none !important; }
+        .toast {
+            position: fixed;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: 20px;
+            background: rgba(15, 23, 42, 0.93);
+            color: #f8fafc;
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 0.9rem;
+            opacity: 0;
+            pointer-events: none;
+            transition: 180ms ease;
+            z-index: 1000;
+        }
+        .toast.show { opacity: 1; }
+        @media (max-width: 980px) {
+            .layout { grid-template-columns: 1fr; }
+            .terminal { min-height: 430px; }
+        }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen font-sans flex flex-col">
-
-    <!-- Header -->
-    <header class="bg-gray-800 border-b border-gray-700 p-4 shadow-md">
-        <div class="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div class="flex items-center gap-3">
-                <i data-lucide="scan-line" class="w-8 h-8 text-blue-400"></i>
-                <div>
-                    <h1 class="text-xl font-bold text-white">Bluetooth SPP Scanner Terminal</h1>
-                    <p class="text-xs text-gray-400">Connects via OS Virtual COM Ports (Web Serial API)</p>
+<body>
+    <div class="app">
+        <header class="glass">
+            <div>
+                <h1>Scanner Studio</h1>
+                <div class="sub">BLE + SPP barcode scanner console (browser-only, offline ready)</div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+                <div class="mode-toggle">
+                    <button id="modeBleBtn" class="active" type="button">BLE Mode</button>
+                    <button id="modeSppBtn" type="button">SPP Mode</button>
+                </div>
+                <div class="status">
+                    <span id="statusDot" class="dot"></span>
+                    <span id="statusText">Disconnected</span>
                 </div>
             </div>
-            
-            <div class="flex items-center gap-4">
-                <div class="flex items-center gap-2 px-3 py-1 bg-gray-700 rounded-full text-sm">
-                    <span id="statusDot" class="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
-                    <span id="statusText" class="font-medium">Disconnected</span>
-                </div>
-            </div>
-        </div>
-    </header>
+        </header>
 
-    <!-- Main Content -->
-    <main class="flex-1 max-w-6xl w-full mx-auto p-4 flex flex-col md:flex-row gap-6 h-[calc(100vh-80px)]">
-        
-        <!-- Controls Sidebar -->
-        <aside class="w-full md:w-80 flex flex-col gap-4">
-            <!-- Connection Card -->
-            <div class="bg-gray-800 rounded-xl border border-gray-700 p-5 shadow-lg">
-                <h2 class="text-lg font-semibold mb-4 border-b border-gray-700 pb-2 flex items-center gap-2">
-                    <i data-lucide="plug" class="w-5 h-5 text-gray-400"></i> Connection
-                </h2>
-                
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm text-gray-400 mb-1">Baud Rate</label>
-                        <select id="baudRate" class="w-full bg-gray-900 border border-gray-600 rounded-lg p-2 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
-                            <option value="9600" selected>9600 (Standard)</option>
+        <section class="layout">
+            <div class="stack glass" style="padding:14px;">
+                <div class="card">
+                    <h2>Connection</h2>
+
+                    <div id="bleControls">
+                        <p class="help">Use browser Bluetooth discovery to pair and connect with BLE scanners.</p>
+                        <label class="check" style="margin-top:10px;">
+                            <input id="broadBleDiscovery" type="checkbox">
+                            Broad BLE discovery (show all nearby BLE devices)
+                        </label>
+                        <div class="actions" style="margin-top:12px;">
+                            <button id="bleConnectBtn" class="primary" type="button">Discover & Connect BLE Scanner</button>
+                            <button id="bleDisconnectBtn" class="danger hidden" type="button">Disconnect</button>
+                        </div>
+                    </div>
+
+                    <div id="sppControls" class="hidden">
+                        <label for="baudRate">Baud rate</label>
+                        <select id="baudRate">
+                            <option value="9600">9600</option>
                             <option value="19200">19200</option>
                             <option value="38400">38400</option>
                             <option value="57600">57600</option>
-                            <option value="115200">115200 (High Speed)</option>
+                            <option value="115200" selected>115200</option>
                         </select>
+                        <div class="actions" style="margin-top:12px;">
+                            <button id="sppConnectBtn" class="primary" type="button">Connect SPP Scanner</button>
+                            <button id="sppDisconnectBtn" class="danger hidden" type="button">Disconnect</button>
+                        </div>
                     </div>
-
-                    <button id="connectBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2.5 px-4 rounded-lg transition duration-200 flex items-center justify-center gap-2">
-                        <i data-lucide="link" class="w-5 h-5"></i> Connect Scanner
-                    </button>
-                    
-                    <button id="disconnectBtn" class="w-full bg-red-600 hover:bg-red-500 text-white font-semibold py-2.5 px-4 rounded-lg transition duration-200 flex items-center justify-center gap-2 hidden">
-                        <i data-lucide="link-2-off" class="w-5 h-5"></i> Disconnect
-                    </button>
                 </div>
-            </div>
 
-            <!-- Settings Card -->
-            <div class="bg-gray-800 rounded-xl border border-gray-700 p-5 shadow-lg">
-                <h2 class="text-lg font-semibold mb-4 border-b border-gray-700 pb-2 flex items-center gap-2">
-                    <i data-lucide="settings" class="w-5 h-5 text-gray-400"></i> Options
-                </h2>
-                
-                <div class="space-y-3">
-                    <label class="flex items-center gap-3 cursor-pointer group">
-                        <input type="checkbox" id="soundToggle" checked class="w-4 h-4 rounded bg-gray-900 border-gray-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800 cursor-pointer">
-                        <span class="text-sm text-gray-300 group-hover:text-white transition">Play sound on scan</span>
+                <div class="card">
+                    <h2>Scanner Data</h2>
+                    <label for="lastBarcode">Latest decoded barcode</label>
+                    <input id="lastBarcode" type="text" readonly placeholder="No barcode yet">
+                    <div class="barcodes">
+                        <div class="muted">Scans: <strong id="scanCount">0</strong> • <span id="lastScanTime">No scans yet</span></div>
+                        <ol id="barcodeHistory" class="barcode-list"></ol>
+                    </div>
+                </div>
+
+                <div id="txPanel" class="card hidden">
+                    <h2>SPP TX (two-way)</h2>
+                    <div class="inline">
+                        <div>
+                            <label for="txInput">Command to send</label>
+                            <input id="txInput" type="text" placeholder="Type payload for scanner">
+                        </div>
+                        <button id="txSendBtn" class="secondary" type="button">Send TX</button>
+                    </div>
+                    <label class="check" style="margin-top:10px;">
+                        <input id="appendNewline" type="checkbox" checked>
+                        Append newline (\n)
                     </label>
-                    <label class="flex items-center gap-3 cursor-pointer group">
-                        <input type="checkbox" id="autoScrollToggle" checked class="w-4 h-4 rounded bg-gray-900 border-gray-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800 cursor-pointer">
-                        <span class="text-sm text-gray-300 group-hover:text-white transition">Auto-scroll terminal</span>
-                    </label>
+                </div>
+
+                <div class="card">
+                    <h2>Options</h2>
+                    <label class="check"><input id="soundToggle" type="checkbox" checked> Beep on successful scan</label>
+                    <label class="check"><input id="autoScrollToggle" type="checkbox" checked> Auto-scroll raw log terminal</label>
+                </div>
+
+                <div class="card">
+                    <h2>How to use</h2>
+                    <p class="help">
+                        BLE mode: click discover to pair from browser and stream notifications.<br>
+                        SPP mode: connect with Web Serial and use TX/RX for two-way serial communication.
+                    </p>
                 </div>
             </div>
 
-            <!-- Instructions -->
-            <div class="bg-blue-900/30 border border-blue-800/50 rounded-xl p-4 text-sm text-blue-200 shadow-inner">
-                <p class="font-semibold text-blue-400 mb-2 flex items-center gap-1"><i data-lucide="info" class="w-4 h-4"></i> How to use</p>
-                <ol class="list-decimal list-inside space-y-1.5 opacity-90">
-                    <li>Pair scanner to OS via Bluetooth.</li>
-                    <li>Ensure scanner is set to <b>SPP Mode</b>.</li>
-                    <li>Click <b>Connect Scanner</b>.</li>
-                    <li>Select the assigned Virtual COM port.</li>
-                    <li>Scan a barcode!</li>
-                </ol>
-            </div>
-        </aside>
-
-        <!-- Terminal Output -->
-        <div class="flex-1 bg-gray-950 rounded-xl border border-gray-700 shadow-2xl flex flex-col overflow-hidden relative">
-            
-            <!-- Terminal Header -->
-            <div class="bg-gray-800 px-4 py-3 flex justify-between items-center border-b border-gray-700">
-                <span class="font-mono text-gray-400 text-sm flex items-center gap-2">
-                    <i data-lucide="terminal" class="w-4 h-4"></i> Output Window
-                </span>
-                <div class="flex gap-2">
-                    <button id="copyBtn" class="text-gray-400 hover:text-white bg-gray-700 hover:bg-gray-600 p-1.5 rounded transition" title="Copy All">
-                        <i data-lucide="copy" class="w-4 h-4"></i>
-                    </button>
-                    <button id="clearBtn" class="text-gray-400 hover:text-red-400 bg-gray-700 hover:bg-gray-600 p-1.5 rounded transition" title="Clear Terminal">
-                        <i data-lucide="trash-2" class="w-4 h-4"></i>
-                    </button>
+            <div class="glass terminal">
+                <div class="terminal-head">
+                    <strong>Raw Scanner Terminal</strong>
+                    <div class="term-controls">
+                        <button id="copyBtn" class="secondary" type="button">Copy Log</button>
+                        <button id="clearBtn" class="danger" type="button">Clear</button>
+                    </div>
+                </div>
+                <div id="logOutput" aria-live="polite">
+                    <span class="entry"><span class="tag tag-sys">SYS</span>Ready. Choose BLE or SPP mode to start.</span>
                 </div>
             </div>
-
-            <!-- Terminal Output Area -->
-            <div id="terminalContainer" class="flex-1 p-4 overflow-y-auto terminal-scroll font-mono text-sm">
-                <div id="output" class="text-green-400 whitespace-pre-wrap break-all leading-relaxed space-y-1">
-                    <div class="text-gray-500 italic">Waiting for connection...</div>
-                </div>
-            </div>
-
-            <!-- Total Scans Footer -->
-            <div class="bg-gray-900 px-4 py-2 text-xs text-gray-500 border-t border-gray-800 flex justify-between">
-                <span>Total Items Scanned: <span id="scanCount" class="text-white font-bold">0</span></span>
-                <span id="lastScanTime"></span>
-            </div>
-        </div>
-
-    </main>
-
-    <!-- Error/Message Modal Overlay -->
-    <div id="messageModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
-        <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 max-w-md w-full shadow-2xl transform scale-95 transition-all">
-            <h3 id="modalTitle" class="text-xl font-bold text-white mb-2">Notice</h3>
-            <p id="modalBody" class="text-gray-300 mb-6 leading-relaxed"></p>
-            <div class="flex justify-end">
-                <button onclick="closeModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-lg font-medium transition">
-                    Understood
-                </button>
-            </div>
-        </div>
+        </section>
     </div>
 
+    <div id="toast" class="toast"></div>
+
     <script>
-        // Initialize Lucide Icons
-        lucide.createIcons();
+        const BLE_UART_SERVICE = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+        const BLE_UART_RX = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+        const BLE_UART_TX = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+        const MAX_BARCODE_HISTORY = 25;
+        const FALLBACK_SERVICES = [
+            BLE_UART_SERVICE,
+            '0000180f-0000-1000-8000-00805f9b34fb',
+            '00001800-0000-1000-8000-00805f9b34fb',
+            '0000180a-0000-1000-8000-00805f9b34fb'
+        ];
 
-        // State variables
-        let port = null;
-        let reader = null;
-        let keepReading = false;
-        let scanCount = 0;
-        let inputBuffer = '';
-
-        // DOM Elements
-        const connectBtn = document.getElementById('connectBtn');
-        const disconnectBtn = document.getElementById('disconnectBtn');
-        const statusText = document.getElementById('statusText');
+        const modeBleBtn = document.getElementById('modeBleBtn');
+        const modeSppBtn = document.getElementById('modeSppBtn');
+        const bleControls = document.getElementById('bleControls');
+        const sppControls = document.getElementById('sppControls');
+        const txPanel = document.getElementById('txPanel');
         const statusDot = document.getElementById('statusDot');
-        const output = document.getElementById('output');
-        const terminalContainer = document.getElementById('terminalContainer');
-        const baudRateSelect = document.getElementById('baudRate');
-        const clearBtn = document.getElementById('clearBtn');
-        const copyBtn = document.getElementById('copyBtn');
-        const scanCountEl = document.getElementById('scanCount');
-        const lastScanTimeEl = document.getElementById('lastScanTime');
+        const statusText = document.getElementById('statusText');
+        const bleConnectBtn = document.getElementById('bleConnectBtn');
+        const bleDisconnectBtn = document.getElementById('bleDisconnectBtn');
+        const sppConnectBtn = document.getElementById('sppConnectBtn');
+        const sppDisconnectBtn = document.getElementById('sppDisconnectBtn');
+        const baudRate = document.getElementById('baudRate');
+        const txInput = document.getElementById('txInput');
+        const txSendBtn = document.getElementById('txSendBtn');
+        const appendNewline = document.getElementById('appendNewline');
+        const broadBleDiscovery = document.getElementById('broadBleDiscovery');
         const soundToggle = document.getElementById('soundToggle');
         const autoScrollToggle = document.getElementById('autoScrollToggle');
+        const copyBtn = document.getElementById('copyBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const logOutput = document.getElementById('logOutput');
+        const lastBarcode = document.getElementById('lastBarcode');
+        const barcodeHistory = document.getElementById('barcodeHistory');
+        const scanCount = document.getElementById('scanCount');
+        const lastScanTime = document.getElementById('lastScanTime');
+        const toast = document.getElementById('toast');
 
-        // Check compatibility
-        window.onload = () => {
-            if (!('serial' in navigator)) {
-                showModal(
-                    "Unsupported Browser", 
-                    "Your browser does not support the Web Serial API. Please use Google Chrome, Microsoft Edge, or Opera on a desktop operating system to connect to serial ports."
-                );
-                connectBtn.disabled = true;
-                connectBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        let mode = 'ble';
+        let scanTotal = 0;
+        let barcodeBuffer = '';
+        let scannerAudioCtx;
+        const textDecoder = new TextDecoder();
+        const textEncoder = new TextEncoder();
+
+        const spp = { port: null, reader: null, writer: null, reading: false };
+        const ble = { device: null, server: null, notifyChar: null, writeChar: null };
+
+        function isConnected() {
+            return mode === 'ble'
+                ? ble.device && ble.device.gatt && ble.device.gatt.connected
+                : Boolean(spp.port);
+        }
+
+        function setStatus(connected, label) {
+            statusText.textContent = label || (connected ? 'Connected' : 'Disconnected');
+            statusDot.style.background = connected ? 'var(--ok)' : 'var(--danger)';
+            statusDot.style.boxShadow = connected
+                ? '0 0 0 4px rgba(22,163,74,.22)'
+                : '0 0 0 4px rgba(220,38,38,.22)';
+        }
+
+        function showToast(message) {
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2200);
+        }
+
+        function addLog(type, text) {
+            const line = document.createElement('span');
+            line.className = 'entry';
+            const tagClass = type === 'RX' ? 'tag-rx' : type === 'TX' ? 'tag-tx' : 'tag-sys';
+            const now = new Date().toLocaleTimeString();
+            line.innerHTML = `<span class="tag ${tagClass}">${type}</span>[${now}] ${escapeHtml(text)}`;
+            logOutput.appendChild(line);
+            if (autoScrollToggle.checked) {
+                logOutput.scrollTop = logOutput.scrollHeight;
             }
-        };
+        }
 
-        // --- Audio Context for Beep ---
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        let audioCtx;
+        function escapeHtml(value) {
+            return value
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#39;');
+        }
 
-        function playBeep() {
+        function bytesToHex(bytes) {
+            return Array.from(bytes).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+        }
+
+        function decodeAndProcessChunk(bytes, source) {
+            const rawHex = bytesToHex(bytes);
+            const text = textDecoder.decode(bytes, { stream: true });
+            addLog('RX', `${source} HEX=${rawHex}${text ? ` | TXT=${text.replace(/\r/g, '\\r').replace(/\n/g, '\\n')}` : ''}`);
+            barcodeBuffer += text;
+
+            const parts = barcodeBuffer.split(/\r\n|\n|\r/);
+            barcodeBuffer = parts.pop() || '';
+            for (const item of parts) {
+                const code = item.trim();
+                if (code) {
+                    onBarcode(code);
+                }
+            }
+        }
+
+        function onBarcode(code) {
+            scanTotal += 1;
+            scanCount.textContent = String(scanTotal);
+            const stamp = new Date().toLocaleTimeString();
+            lastScanTime.textContent = `Last: ${stamp}`;
+            lastBarcode.value = code;
+            const li = document.createElement('li');
+            li.textContent = `${stamp} — ${code}`;
+            barcodeHistory.prepend(li);
+            while (barcodeHistory.children.length > MAX_BARCODE_HISTORY) {
+                barcodeHistory.removeChild(barcodeHistory.lastChild);
+            }
+            beep();
+        }
+
+        function beep() {
             if (!soundToggle.checked) return;
-            if (!audioCtx) audioCtx = new AudioContext();
-            
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx) return;
+            scannerAudioCtx = scannerAudioCtx || new Ctx();
+            const oscillator = scannerAudioCtx.createOscillator();
+            const gain = scannerAudioCtx.createGain();
             oscillator.type = 'sine';
-            oscillator.frequency.setValueAtTime(1200, audioCtx.currentTime); // High pitch for scanner
-            
-            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            
+            oscillator.frequency.setValueAtTime(1150, scannerAudioCtx.currentTime);
+            gain.gain.setValueAtTime(0.11, scannerAudioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, scannerAudioCtx.currentTime + 0.1);
+            oscillator.connect(gain);
+            gain.connect(scannerAudioCtx.destination);
             oscillator.start();
-            oscillator.stop(audioCtx.currentTime + 0.1);
+            oscillator.stop(scannerAudioCtx.currentTime + 0.1);
         }
 
-        // --- Serial Port Logic ---
+        async function disconnectAll() {
+            await disconnectSpp();
+            await disconnectBle();
+            setStatus(false, 'Disconnected');
+        }
 
-        connectBtn.addEventListener('click', async () => {
-            try {
-                // Request port selection from user
-                port = await navigator.serial.requestPort();
-                
-                // Open connection
-                const baudRate = parseInt(baudRateSelect.value);
-                await port.open({ baudRate: baudRate });
-                
-                // Update UI
-                updateUIConnected(true);
-                printToTerminal(`Connected at ${baudRate} baud. Ready to scan...`, 'text-blue-400');
-                
-                // Start reading loop
-                keepReading = true;
-                readLoop();
-
-            } catch (err) {
-                console.error("Connection error:", err);
-                if (err.name === 'NotFoundError') {
-                    // User cancelled selection
-                    return;
-                }
-                showModal("Connection Failed", `Failed to open port: ${err.message}. Ensure no other application (like a terminal app) is currently using this COM port.`);
+        async function setMode(nextMode) {
+            if (nextMode === mode) return;
+            await disconnectAll();
+            mode = nextMode;
+            const isBle = mode === 'ble';
+            modeBleBtn.classList.toggle('active', isBle);
+            modeSppBtn.classList.toggle('active', !isBle);
+            bleControls.classList.toggle('hidden', !isBle);
+            sppControls.classList.toggle('hidden', isBle);
+            txPanel.classList.toggle('hidden', isBle);
+            barcodeBuffer = '';
+            addLog('SYS', `Switched to ${isBle ? 'BLE' : 'SPP'} mode.`);
+            if (isBle && !navigator.bluetooth) {
+                addLog('SYS', 'Web Bluetooth API not available in this browser.');
             }
-        });
-
-        disconnectBtn.addEventListener('click', async () => {
-            keepReading = false;
-            
-            // Force reader to cancel so we can release lock and close
-            if (reader) {
-                await reader.cancel();
-            }
-            
-            // Update UI
-            updateUIConnected(false);
-            printToTerminal("Disconnected.", 'text-yellow-400');
-        });
-
-        async function readLoop() {
-            while (port.readable && keepReading) {
-                // Setup stream decoding
-                const textDecoder = new TextDecoderStream();
-                const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
-                reader = textDecoder.readable.getReader();
-
-                try {
-                    while (true) {
-                        const { value, done } = await reader.read();
-                        if (done) break;
-                        if (value) {
-                            handleIncomingData(value);
-                        }
-                    }
-                } catch (error) {
-                    console.error("Read error:", error);
-                    printToTerminal(`Error reading from port: ${error.message}`, 'text-red-400');
-                } finally {
-                    reader.releaseLock();
-                }
-            }
-
-            // Clean up port closure after loop breaks
-            if (port) {
-                try {
-                    await port.close();
-                } catch (e) {
-                    console.error("Error closing port:", e);
-                }
+            if (!isBle && !navigator.serial) {
+                addLog('SYS', 'Web Serial API not available in this browser.');
             }
         }
 
-        // Buffer for incoming chunks
-        function handleIncomingData(data) {
-            inputBuffer += data;
-            
-            // Barcode scanners typically send \n or \r\n after a complete scan
-            if (inputBuffer.includes('\n') || inputBuffer.includes('\r')) {
-                // Split by newlines
-                const lines = inputBuffer.split(/\r?\n|\r/);
-                
-                // The last element is either empty string (if it ended exactly with newline) 
-                // or an incomplete piece of the next barcode.
-                inputBuffer = lines.pop(); 
-                
-                lines.forEach(line => {
-                    const cleanLine = line.trim();
-                    if (cleanLine.length > 0) {
-                        processBarcode(cleanLine);
-                    }
+        async function requestBleDevice() {
+            if (broadBleDiscovery.checked) {
+                addLog('SYS', 'Using broad BLE discovery (all visible BLE devices).');
+                return navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: FALLBACK_SERVICES
                 });
             }
+
+            return navigator.bluetooth.requestDevice({
+                filters: [
+                    { services: [BLE_UART_SERVICE] },
+                    { services: [BLE_UART_SERVICE], namePrefix: 'Scanner' },
+                    { services: [BLE_UART_SERVICE], namePrefix: 'Barcode' },
+                    { services: [BLE_UART_SERVICE], namePrefix: 'BC' }
+                ],
+                optionalServices: FALLBACK_SERVICES
+            });
         }
 
-        function processBarcode(barcode) {
-            scanCount++;
-            scanCountEl.innerText = scanCount;
-            
-            const timeStr = new Date().toLocaleTimeString();
-            lastScanTimeEl.innerText = `Last scan: ${timeStr}`;
-            
-            playBeep();
-            
-            // Create nice looking entry
-            const entryStr = `[${timeStr}] ${barcode}`;
-            printToTerminal(entryStr, 'text-green-400 font-bold bg-green-900/20 px-2 py-0.5 rounded inline-block w-full');
-        }
-
-        // --- UI & Helper Functions ---
-
-        function printToTerminal(text, customClasses = '') {
-            // Remove initial placeholder if present
-            if (output.innerHTML.includes('Waiting for connection...')) {
-                output.innerHTML = '';
-            }
-
-            const div = document.createElement('div');
-            div.textContent = text;
-            if (customClasses) {
-                div.className = customClasses;
-            }
-            
-            output.appendChild(div);
-
-            if (autoScrollToggle.checked) {
-                terminalContainer.scrollTop = terminalContainer.scrollHeight;
-            }
-        }
-
-        function updateUIConnected(isConnected) {
-            if (isConnected) {
-                connectBtn.classList.add('hidden');
-                disconnectBtn.classList.remove('hidden');
-                statusText.innerText = "Connected";
-                statusDot.classList.replace('bg-red-500', 'bg-green-500');
-                statusDot.classList.replace('shadow-[0_0_8px_rgba(239,68,68,0.8)]', 'shadow-[0_0_8px_rgba(34,197,94,0.8)]');
-                baudRateSelect.disabled = true;
-                baudRateSelect.classList.add('opacity-50');
-            } else {
-                connectBtn.classList.remove('hidden');
-                disconnectBtn.classList.add('hidden');
-                statusText.innerText = "Disconnected";
-                statusDot.classList.replace('bg-green-500', 'bg-red-500');
-                statusDot.classList.replace('shadow-[0_0_8px_rgba(34,197,94,0.8)]', 'shadow-[0_0_8px_rgba(239,68,68,0.8)]');
-                baudRateSelect.disabled = false;
-                baudRateSelect.classList.remove('opacity-50');
-                port = null;
-            }
-        }
-
-        clearBtn.addEventListener('click', () => {
-            output.innerHTML = '<div class="text-gray-500 italic">Terminal cleared...</div>';
-            scanCount = 0;
-            scanCountEl.innerText = '0';
-            lastScanTimeEl.innerText = '';
-            inputBuffer = '';
-        });
-
-        copyBtn.addEventListener('click', async () => {
-            // Get text without the placeholder
-            let textToCopy = output.innerText;
-            if (textToCopy.includes('Waiting for connection...') || textToCopy.includes('Terminal cleared...')) {
-                textToCopy = ""; // Don't copy placeholders
-            }
-            
-            if (!textToCopy.trim()) {
-                showModal("Nothing to copy", "The terminal is currently empty.");
+        async function connectBle() {
+            if (!navigator.bluetooth) {
+                showToast('Web Bluetooth API is not supported in this browser.');
                 return;
             }
-
             try {
-                // Fallback method required for iFrames
-                const textArea = document.createElement("textarea");
-                textArea.value = textToCopy;
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-                
-                // Visual feedback
-                const originalHtml = copyBtn.innerHTML;
-                copyBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4 text-green-400"></i>';
-                lucide.createIcons();
-                setTimeout(() => {
-                    copyBtn.innerHTML = originalHtml;
-                    lucide.createIcons();
-                }, 2000);
-            } catch (err) {
-                console.error('Failed to copy', err);
+                addLog('SYS', 'Starting BLE discovery...');
+                ble.device = await requestBleDevice();
+                ble.device.addEventListener('gattserverdisconnected', onBleDisconnected);
+                ble.server = await ble.device.gatt.connect();
+                await setupBleCharacteristics();
+                bleConnectBtn.classList.add('hidden');
+                bleDisconnectBtn.classList.remove('hidden');
+                setStatus(true, `Connected (BLE: ${ble.device.name || ble.device.id})`);
+                addLog('SYS', `BLE connected to ${ble.device.name || ble.device.id}.`);
+            } catch (error) {
+                if (error && error.name !== 'NotFoundError') {
+                    addLog('SYS', `BLE connect error: ${error.message}`);
+                    showToast(error.message);
+                }
+            }
+        }
+
+        async function setupBleCharacteristics() {
+            let notifyChar = null;
+            let writeChar = null;
+            const services = await ble.server.getPrimaryServices();
+
+            for (const service of services) {
+                const chars = await service.getCharacteristics();
+                for (const char of chars) {
+                    if (!notifyChar && (char.properties.notify || char.properties.indicate)) {
+                        notifyChar = char;
+                    }
+                    if (!writeChar && (char.properties.write || char.properties.writeWithoutResponse)) {
+                        writeChar = char;
+                    }
+                    if (char.uuid === BLE_UART_RX) notifyChar = char;
+                    if (char.uuid === BLE_UART_TX) writeChar = char;
+                }
+            }
+
+            if (!notifyChar) {
+                throw new Error('No BLE notification characteristic found. Ensure scanner supports BLE UART or enable broad discovery mode.');
+            }
+            ble.notifyChar = notifyChar;
+            ble.writeChar = writeChar;
+
+            await ble.notifyChar.startNotifications();
+            ble.notifyChar.addEventListener('characteristicvaluechanged', onBleNotification);
+        }
+
+        function onBleNotification(event) {
+            const value = event.target.value;
+            if (!value) return;
+            decodeAndProcessChunk(new Uint8Array(value.buffer, value.byteOffset, value.byteLength), 'BLE');
+        }
+
+        async function disconnectBle() {
+            if (ble.notifyChar) {
+                try {
+                    ble.notifyChar.removeEventListener('characteristicvaluechanged', onBleNotification);
+                    await ble.notifyChar.stopNotifications();
+                } catch (_) {}
+            }
+            if (ble.device && ble.device.gatt && ble.device.gatt.connected) {
+                ble.device.gatt.disconnect();
+            }
+            ble.notifyChar = null;
+            ble.writeChar = null;
+            ble.server = null;
+            ble.device = null;
+            bleDisconnectBtn.classList.add('hidden');
+            bleConnectBtn.classList.remove('hidden');
+        }
+
+        function onBleDisconnected() {
+            addLog('SYS', 'BLE disconnected.');
+            bleDisconnectBtn.classList.add('hidden');
+            bleConnectBtn.classList.remove('hidden');
+            setStatus(false, 'Disconnected');
+        }
+
+        async function connectSpp() {
+            if (!navigator.serial) {
+                showToast('Web Serial API is not supported in this browser.');
+                return;
+            }
+            try {
+                spp.port = await navigator.serial.requestPort();
+                const selectedBaud = Number.parseInt(baudRate.value, 10);
+                if (!Number.isFinite(selectedBaud)) {
+                    throw new Error('Invalid baud rate selected.');
+                }
+                await spp.port.open({ baudRate: selectedBaud });
+                spp.writer = spp.port.writable ? spp.port.writable.getWriter() : null;
+                spp.reading = true;
+                readSppLoop();
+                sppConnectBtn.classList.add('hidden');
+                sppDisconnectBtn.classList.remove('hidden');
+                baudRate.disabled = true;
+                txSendBtn.disabled = false;
+                setStatus(true, `Connected (SPP ${baudRate.value})`);
+                addLog('SYS', `SPP connected at ${baudRate.value} baud.`);
+            } catch (error) {
+                if (error && error.name !== 'NotFoundError') {
+                    addLog('SYS', `SPP connect error: ${error.message}`);
+                    showToast(error.message);
+                }
+            }
+        }
+
+        async function disconnectSpp() {
+            spp.reading = false;
+            if (spp.reader) {
+                try { await spp.reader.cancel(); } catch (_) {}
+                try { spp.reader.releaseLock(); } catch (_) {}
+                spp.reader = null;
+            }
+            if (spp.writer) {
+                try { spp.writer.releaseLock(); } catch (_) {}
+                spp.writer = null;
+            }
+            if (spp.port) {
+                try { await spp.port.close(); } catch (_) {}
+            }
+            spp.port = null;
+            sppConnectBtn.classList.remove('hidden');
+            sppDisconnectBtn.classList.add('hidden');
+            baudRate.disabled = false;
+            txSendBtn.disabled = true;
+        }
+
+        async function readSppLoop() {
+            while (spp.port && spp.port.readable && spp.reading) {
+                spp.reader = spp.port.readable.getReader();
+                try {
+                    while (spp.reading) {
+                        const { value, done } = await spp.reader.read();
+                        if (done) break;
+                        if (value) decodeAndProcessChunk(value, 'SPP');
+                    }
+                } catch (error) {
+                    addLog('SYS', `SPP RX error: ${error.message}`);
+                } finally {
+                    try { spp.reader.releaseLock(); } catch (_) {}
+                    spp.reader = null;
+                }
+            }
+        }
+
+        async function sendSppTx() {
+            if (!spp.writer || !spp.port) {
+                showToast('Connect in SPP mode first.');
+                return;
+            }
+            const payload = txInput.value + (appendNewline.checked ? '\n' : '');
+            if (!payload) return;
+            try {
+                const encoded = textEncoder.encode(payload);
+                await spp.writer.write(encoded);
+                addLog('TX', `SPP HEX=${bytesToHex(encoded)} | TXT=${payload.replace(/\n/g, '\\n')}`);
+                txInput.value = '';
+            } catch (error) {
+                addLog('SYS', `SPP TX error: ${error.message}`);
+                showToast(error.message);
+            }
+        }
+
+        modeBleBtn.addEventListener('click', () => { setMode('ble'); });
+        modeSppBtn.addEventListener('click', () => { setMode('spp'); });
+        bleConnectBtn.addEventListener('click', connectBle);
+        bleDisconnectBtn.addEventListener('click', async () => {
+            await disconnectBle();
+            setStatus(false, 'Disconnected');
+            addLog('SYS', 'BLE disconnected by user.');
+        });
+        sppConnectBtn.addEventListener('click', connectSpp);
+        sppDisconnectBtn.addEventListener('click', async () => {
+            await disconnectSpp();
+            setStatus(false, 'Disconnected');
+            addLog('SYS', 'SPP disconnected by user.');
+        });
+        txSendBtn.addEventListener('click', sendSppTx);
+        txInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                sendSppTx();
+            }
+        });
+        clearBtn.addEventListener('click', () => {
+            logOutput.innerHTML = '<span class="entry"><span class="tag tag-sys">SYS</span>Terminal cleared.</span>';
+            scanTotal = 0;
+            scanCount.textContent = '0';
+            lastScanTime.textContent = 'No scans yet';
+            lastBarcode.value = '';
+            barcodeHistory.innerHTML = '';
+            barcodeBuffer = '';
+        });
+        copyBtn.addEventListener('click', async () => {
+            const text = logOutput.innerText.trim();
+            if (!text) return;
+            try {
+                await navigator.clipboard.writeText(text);
+                showToast('Terminal copied');
+            } catch (_) {
+                showToast('Clipboard unavailable');
             }
         });
 
-        // Modal logic
-        const modal = document.getElementById('messageModal');
-        const modalTitle = document.getElementById('modalTitle');
-        const modalBody = document.getElementById('modalBody');
+        window.addEventListener('beforeunload', () => { disconnectAll(); });
 
-        function showModal(title, message) {
-            modalTitle.innerText = title;
-            modalBody.innerText = message;
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-            // Small delay for transition effect
-            setTimeout(() => {
-                modal.children[0].classList.remove('scale-95');
-                modal.children[0].classList.add('scale-100');
-            }, 10);
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js').catch((error) => {
+                addLog('SYS', `Service worker registration failed: ${error.message}`);
+            });
         }
 
-        function closeModal() {
-            modal.children[0].classList.remove('scale-100');
-            modal.children[0].classList.add('scale-95');
-            setTimeout(() => {
-                modal.classList.add('hidden');
-                modal.classList.remove('flex');
-            }, 150);
-        }
+        txSendBtn.disabled = true;
+        if (!navigator.bluetooth) addLog('SYS', 'Web Bluetooth not available.');
+        if (!navigator.serial) addLog('SYS', 'Web Serial not available.');
     </script>
 </body>
 </html>
