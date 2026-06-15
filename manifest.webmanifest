@@ -1,0 +1,10 @@
+{
+  "name": "Scanner Studio",
+  "short_name": "Scanner",
+  "description": "Browser-based BLE/SPP barcode scanner terminal.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#edf2ff",
+  "theme_color": "#edf2ff"
+}
