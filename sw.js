@@ -2,8 +2,7 @@ const CACHE_NAME = 'scanner-studio-v1';
 const APP_ASSETS = [
   './',
   './index.html',
-  './manifest.webmanifest',
-  './sw.js'
+  './manifest.webmanifest'
 ];
 
 self.addEventListener('install', (event) => {

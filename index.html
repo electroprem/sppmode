@@ -103,7 +103,7 @@
         }
         .layout {
             display: grid;
-            grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+            grid-template-columns: minmax(240px, 360px) minmax(0, 1fr);
             gap: 18px;
         }
         .stack { display: grid; gap: 14px; }
@@ -464,7 +464,7 @@
         }
 
         function bytesToHex(bytes) {
-            return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(' ');
+            return Array.from(bytes).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
         }
 
         function decodeAndProcessChunk(bytes, source) {
@@ -553,9 +553,9 @@
             return navigator.bluetooth.requestDevice({
                 filters: [
                     { services: [BLE_UART_SERVICE] },
-                    { namePrefix: 'Scanner' },
-                    { namePrefix: 'Barcode' },
-                    { namePrefix: 'BC' }
+                    { services: [BLE_UART_SERVICE], namePrefix: 'Scanner' },
+                    { services: [BLE_UART_SERVICE], namePrefix: 'Barcode' },
+                    { services: [BLE_UART_SERVICE], namePrefix: 'BC' }
                 ],
                 optionalServices: FALLBACK_SERVICES
             });
@@ -604,7 +604,7 @@
             }
 
             if (!notifyChar) {
-                throw new Error('No BLE notification characteristic found for scanner data.');
+                throw new Error('No BLE notification characteristic found. Ensure scanner supports BLE UART or enable broad discovery mode.');
             }
             ble.notifyChar = notifyChar;
             ble.writeChar = writeChar;
@@ -651,7 +651,11 @@
             }
             try {
                 spp.port = await navigator.serial.requestPort();
-                await spp.port.open({ baudRate: +baudRate.value });
+                const selectedBaud = Number.parseInt(baudRate.value, 10);
+                if (!Number.isFinite(selectedBaud)) {
+                    throw new Error('Invalid baud rate selected.');
+                }
+                await spp.port.open({ baudRate: selectedBaud });
                 spp.writer = spp.port.writable ? spp.port.writable.getWriter() : null;
                 spp.reading = true;
                 readSppLoop();
@@ -716,8 +720,9 @@
             const payload = txInput.value + (appendNewline.checked ? '\n' : '');
             if (!payload) return;
             try {
-                await spp.writer.write(textEncoder.encode(payload));
-                addLog('TX', `SPP HEX=${bytesToHex(textEncoder.encode(payload))} | TXT=${payload.replace(/\n/g, '\\n')}`);
+                const encoded = textEncoder.encode(payload);
+                await spp.writer.write(encoded);
+                addLog('TX', `SPP HEX=${bytesToHex(encoded)} | TXT=${payload.replace(/\n/g, '\\n')}`);
                 txInput.value = '';
             } catch (error) {
                 addLog('SYS', `SPP TX error: ${error.message}`);
