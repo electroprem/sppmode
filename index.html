@@ -290,6 +290,10 @@
 
                     <div id="bleControls">
                         <p class="help">Use browser Bluetooth discovery to pair and connect with BLE scanners.</p>
+                        <label class="check" style="margin-top:10px;">
+                            <input id="broadBleDiscovery" type="checkbox">
+                            Broad BLE discovery (show all nearby BLE devices)
+                        </label>
                         <div class="actions" style="margin-top:12px;">
                             <button id="bleConnectBtn" class="primary" type="button">Discover & Connect BLE Scanner</button>
                             <button id="bleDisconnectBtn" class="danger hidden" type="button">Disconnect</button>
@@ -373,6 +377,7 @@
         const BLE_UART_SERVICE = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
         const BLE_UART_RX = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
         const BLE_UART_TX = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+        const MAX_BARCODE_HISTORY = 25;
         const FALLBACK_SERVICES = [
             BLE_UART_SERVICE,
             '0000180f-0000-1000-8000-00805f9b34fb',
@@ -395,6 +400,7 @@
         const txInput = document.getElementById('txInput');
         const txSendBtn = document.getElementById('txSendBtn');
         const appendNewline = document.getElementById('appendNewline');
+        const broadBleDiscovery = document.getElementById('broadBleDiscovery');
         const soundToggle = document.getElementById('soundToggle');
         const autoScrollToggle = document.getElementById('autoScrollToggle');
         const copyBtn = document.getElementById('copyBtn');
@@ -453,7 +459,8 @@
                 .replaceAll('&', '&amp;')
                 .replaceAll('<', '&lt;')
                 .replaceAll('>', '&gt;')
-                .replaceAll('"', '&quot;');
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#39;');
         }
 
         function bytesToHex(bytes) {
@@ -485,7 +492,7 @@
             const li = document.createElement('li');
             li.textContent = `${stamp} — ${code}`;
             barcodeHistory.prepend(li);
-            while (barcodeHistory.children.length > 25) {
+            while (barcodeHistory.children.length > MAX_BARCODE_HISTORY) {
                 barcodeHistory.removeChild(barcodeHistory.lastChild);
             }
             beep();
@@ -514,9 +521,9 @@
             setStatus(false, 'Disconnected');
         }
 
-        function setMode(nextMode) {
+        async function setMode(nextMode) {
             if (nextMode === mode) return;
-            disconnectAll();
+            await disconnectAll();
             mode = nextMode;
             const isBle = mode === 'ble';
             modeBleBtn.classList.toggle('active', isBle);
@@ -534,6 +541,26 @@
             }
         }
 
+        async function requestBleDevice() {
+            if (broadBleDiscovery.checked) {
+                addLog('SYS', 'Using broad BLE discovery (all visible BLE devices).');
+                return navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: FALLBACK_SERVICES
+                });
+            }
+
+            return navigator.bluetooth.requestDevice({
+                filters: [
+                    { services: [BLE_UART_SERVICE] },
+                    { namePrefix: 'Scanner' },
+                    { namePrefix: 'Barcode' },
+                    { namePrefix: 'BC' }
+                ],
+                optionalServices: FALLBACK_SERVICES
+            });
+        }
+
         async function connectBle() {
             if (!navigator.bluetooth) {
                 showToast('Web Bluetooth API is not supported in this browser.');
@@ -541,10 +568,7 @@
             }
             try {
                 addLog('SYS', 'Starting BLE discovery...');
-                ble.device = await navigator.bluetooth.requestDevice({
-                    acceptAllDevices: true,
-                    optionalServices: FALLBACK_SERVICES
-                });
+                ble.device = await requestBleDevice();
                 ble.device.addEventListener('gattserverdisconnected', onBleDisconnected);
                 ble.server = await ble.device.gatt.connect();
                 await setupBleCharacteristics();
@@ -592,7 +616,7 @@
         function onBleNotification(event) {
             const value = event.target.value;
             if (!value) return;
-            decodeAndProcessChunk(new Uint8Array(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength)), 'BLE');
+            decodeAndProcessChunk(new Uint8Array(value.buffer, value.byteOffset, value.byteLength), 'BLE');
         }
 
         async function disconnectBle() {
@@ -627,7 +651,7 @@
             }
             try {
                 spp.port = await navigator.serial.requestPort();
-                await spp.port.open({ baudRate: Number.parseInt(baudRate.value, 10) });
+                await spp.port.open({ baudRate: +baudRate.value });
                 spp.writer = spp.port.writable ? spp.port.writable.getWriter() : null;
                 spp.reading = true;
                 readSppLoop();
@@ -701,8 +725,8 @@
             }
         }
 
-        modeBleBtn.addEventListener('click', () => setMode('ble'));
-        modeSppBtn.addEventListener('click', () => setMode('spp'));
+        modeBleBtn.addEventListener('click', () => { setMode('ble'); });
+        modeSppBtn.addEventListener('click', () => { setMode('spp'); });
         bleConnectBtn.addEventListener('click', connectBle);
         bleDisconnectBtn.addEventListener('click', async () => {
             await disconnectBle();
